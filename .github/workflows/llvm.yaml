@@ -1,4 +1,4 @@
-name: Build LLVM
+name: Build LLVM Toolchain
 
 on:
   workflow_dispatch:
@@ -6,33 +6,67 @@ on:
 jobs:
   build:
     runs-on: windows-latest
+    timeout-minutes: 360
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Clone LLVM
+        shell: pwsh
         run: |
           git clone --depth=1 https://github.com/llvm/llvm-project.git
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install Ninja
+        shell: pwsh
+        run: choco install ninja -y
+
       - name: Configure
+        shell: pwsh
         run: |
-          cmake -S llvm-project/llvm ^
-                -B build ^
-                -G Ninja ^
-                -DCMAKE_BUILD_TYPE=Release ^
-                -DLLVM_ENABLE_PROJECTS="clang;lld"
+          cmake `
+            -S llvm-project/llvm `
+            -B build `
+            -G Ninja `
+            -DCMAKE_BUILD_TYPE=Release `
+            -DCMAKE_INSTALL_PREFIX=install `
+            -DLLVM_ENABLE_PROJECTS="clang;clang-tools-extra;lld;lldb" `
+            -DLLVM_ENABLE_RUNTIMES="compiler-rt;libcxx;libcxxabi;libunwind" `
+            -DLLVM_TARGETS_TO_BUILD="all" `
+            -DLLVM_INCLUDE_TESTS=OFF `
+            -DLLVM_INCLUDE_EXAMPLES=OFF `
+            -DLLVM_INCLUDE_BENCHMARKS=OFF `
+            -DLLVM_BUILD_TESTS=OFF `
+            -DLLVM_BUILD_EXAMPLES=OFF `
+            -DLLVM_BUILD_DOCS=OFF `
+            -DLLVM_ENABLE_ASSERTIONS=OFF `
+            -DLLVM_ENABLE_TERMINFO=OFF `
+            -DLLVM_ENABLE_ZLIB=ON `
+            -DLLVM_ENABLE_ZSTD=ON `
+            -DLLVM_INSTALL_UTILS=ON `
+            -DCLANG_INCLUDE_TESTS=OFF `
+            -DCLANG_INCLUDE_DOCS=OFF
 
       - name: Build
+        shell: pwsh
         run: |
-          cmake --build build --config Release
+          cmake --build build --parallel
 
-      - name: Upload build
+      - name: Install
+        shell: pwsh
+        run: |
+          cmake --install build
+
+      - name: Upload Toolchain
         uses: actions/upload-artifact@v4
         with:
-          name: llvm-build
-          path: build/
+          name: llvm-toolchain
+          path: install/
 
-      - name: Upload source
+      - name: Upload Source
         uses: actions/upload-artifact@v4
         with:
           name: llvm-source
